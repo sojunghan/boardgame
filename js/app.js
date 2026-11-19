@@ -6,7 +6,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s = "") => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const safeImg = u => (/^(https?:\/\/|data:image\/)/i.test(u || "") ? u : "");
 
-const state = { games: [], reviews: [], sessions: [], profiles: [], profilesLoaded: false, rawUser: null, promptedFor: null, pAvatar: "", isAdmin: false, user: null, openGameId: null, editGameId: null, editSessionId: null, photos: [], pendingRating: 0 };
+const state = { games: [], reviews: [], sessions: [], profiles: [], profilesLoaded: false, rawUser: null, promptedFor: null, pAvatar: "", isAdmin: false, canAdmin: false, adminOnly: false, adminMode: sessionStorage.getItem("bg_admin_mode") === "1", user: null, openGameId: null, editGameId: null, editSessionId: null, photos: [], pendingRating: 0 };
 
 // ---------- 프로필 / 아바타 ----------
 // 캐릭터 기본 아이콘 16종은 js/avatars.js(직접 그린 SVG). 프로필에는 "preset:id" 또는 업로드한 사진(data URL)이 저장돼요.
@@ -23,7 +23,7 @@ const whoHtml = (uid, name, cls = "sm") => `<span class="who-line">${uid ? avata
 function applyProfile() {   // 로그인 정보 + 프로필(이름/아이콘) 합치기
   const r = state.rawUser;
   if (!r) { state.user = null; return; }
-  const p = state.isAdmin ? null : profileOf(r.uid);
+  const p = state.adminOnly ? null : profileOf(r.uid);   // 관리자 전용 계정만 프로필 없음
   state.user = { ...r, name: p?.name || r.name, avatar: p?.avatar || "" };
 }
 const canTouch = row => !!state.user && (state.isAdmin || row.authorUid === state.user.uid);
@@ -207,8 +207,12 @@ function renderAll() {
   $$(".admin-only").forEach(e => e.classList.toggle("hidden", !state.isAdmin));
   $("#adminBtn").classList.toggle("hidden", !!state.user);        // 로그인 중에는 숨김
   $("#userName").classList.toggle("hidden", !state.user);
-  $("#userName").innerHTML = state.user ? `${state.isAdmin ? "" : avatarHtml(state.user.avatar)}${state.isAdmin ? "🛠 " : ""}${esc(state.user.name)}${state.isAdmin ? "" : " ⚙"}` : "";
-  $("#userName").disabled = state.isAdmin;   // 관리자는 프로필 없음
+  $("#userName").innerHTML = state.user ? `${state.adminOnly ? "🛠 " : avatarHtml(state.user.avatar)}${esc(state.user.name)}${state.adminOnly ? "" : " ⚙"}` : "";
+  $("#userName").disabled = state.adminOnly;   // 관리자 전용 계정은 프로필 없음
+  // 관리자 권한이 있는 구글 계정: 평소엔 일반 모드, 버튼을 눌러야 관리자 모드
+  $("#adminModeBtn").classList.toggle("hidden", !(state.canAdmin && !state.adminOnly));
+  $("#adminModeBtn").textContent = state.adminMode ? "🛠 관리자 모드 끄기" : "🛠 관리자 모드 켜기";
+  $("#adminModeBtn").classList.toggle("ghost", !state.adminMode);
   $("#userBtn").textContent = state.user ? "로그아웃" : "Google 로그인";
   $("#userBtn").classList.toggle("ghost", !!state.user);
 }
@@ -221,7 +225,16 @@ for (const name of ["games", "reviews", "sessions", "profiles"]) {
     renderAll();
   }, e => toast("불러오기 실패: " + (e.code || e.message)));
 }
-backend.onAuth(({ user, isAdmin }) => { state.rawUser = user; state.isAdmin = isAdmin; applyProfile(); maybePromptProfile(); renderAll(); });
+function recomputeMode() {
+  if (!state.canAdmin) state.adminMode = false;
+  state.isAdmin = state.canAdmin && (state.adminOnly || state.adminMode);
+  if (!state.adminMode) sessionStorage.removeItem("bg_admin_mode"); else sessionStorage.setItem("bg_admin_mode", "1");
+  applyProfile();
+}
+backend.onAuth(({ user, isAdmin, adminOnly }) => {
+  state.rawUser = user; state.canAdmin = !!isAdmin; state.adminOnly = !!adminOnly;
+  recomputeMode(); maybePromptProfile(); renderAll();
+});
 
 // ---------- 이벤트 ----------
 function showTab(name) {
@@ -328,8 +341,12 @@ $("#loginPromptBtn").addEventListener("click", async () => {
   // 첫 로그인이라 프로필 설정 창이 떠 있으면 그것부터 마치게 하고 이어가지 않음
   if (cb && state.user && $("#profileModal").classList.contains("hidden")) cb();
 });
+$("#adminModeBtn").addEventListener("click", () => {
+  state.adminMode = !state.adminMode; recomputeMode(); renderAll();
+  toast(state.adminMode ? "관리자 모드를 켰어요" : "일반 모드로 돌아왔어요");
+});
 $("#userBtn").addEventListener("click", async () => {
-  if (state.user) { await backend.logout(); toast("로그아웃했어요"); return; }
+  if (state.user) { state.adminMode = false; await backend.logout(); toast("로그아웃했어요"); return; }
   googleLogin();
 });
 $("#adminBtn").addEventListener("click", async () => {
@@ -348,7 +365,7 @@ $("#loginForm").addEventListener("submit", async e => {
 // ---------- 프로필 설정 (헤더의 프로필 칩에서 언제든 변경) ----------
 function maybePromptProfile() {   // 로그인했는데 프로필이 아직 없으면 최초 1회 설정 창을 띄움
   const r = state.rawUser;
-  if (!r || state.isAdmin || !state.profilesLoaded || profileOf(r.uid) || state.promptedFor === r.uid) return;
+  if (!r || state.adminOnly || !state.profilesLoaded || profileOf(r.uid) || state.promptedFor === r.uid) return;
   state.promptedFor = r.uid;
   setTimeout(() => openProfile(), 0);
 }
@@ -358,7 +375,7 @@ function renderProfileForm() {
     `<button type="button" class="avatar-opt ${state.pAvatar === "preset:" + a.id ? "on" : ""}" data-av="preset:${a.id}" title="${a.n}">${avatarHtml("preset:" + a.id)}<span>${a.n}</span></button>`).join("");
 }
 function openProfile() {
-  if (!state.rawUser || state.isAdmin) return;
+  if (!state.rawUser || state.adminOnly) return;
   const p = profileOf(state.rawUser.uid);
   $("#profileForm").elements.name.value = p?.name || state.rawUser.name || "";
   state.pAvatar = p?.avatar || "preset:" + AVATARS[Math.floor(Math.random() * AVATARS.length)].id;

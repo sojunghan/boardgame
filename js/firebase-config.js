@@ -3,7 +3,7 @@
 const BACKEND = "firebase";
 
 // [local 모드] 테스트용 관리자 계정 (실서버에서는 사용되지 않음)
-const LOCAL_ADMIN = { id: "admin", password: "1234" };
+const LOCAL_ADMIN = { id: "admin", password: "1234", memberNames: ["운영자"] };   // memberNames: 이 이름으로 로그인하면 구글 관리자 계정처럼 동작(테스트용)
 
 // [firebase 모드] Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 복사한 값으로 교체하세요.
 // (이 값들은 공개되어도 괜찮습니다. 보안은 firestore.rules가 담당합니다.)

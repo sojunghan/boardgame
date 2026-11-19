@@ -16,7 +16,7 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
   const sTitle = s => { const d = toDate(s.date); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${(s.episode || "").slice(0, 30)}`.trim(); };
   const curName = () => {
     const u = auth.currentUser; if (!u) return null;
-    if (isAdminUser(u)) return "관리자";
+    if (u.email === adminEmail) return "관리자";   // 이메일/비밀번호 관리자 전용 계정만 "관리자"로 표기
     return cache.profiles.find(p => p.id === u.uid)?.name || u.displayName || "회원";
   };
 
@@ -48,16 +48,13 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
     },
     onAuth(cb) {
       au.onAuthStateChanged(auth, u => {
-        const isAdmin = isAdminUser(u);
+        const adminOnly = !!u && u.email === adminEmail;   // 이메일/비밀번호 관리자 전용 계정
         cb({
-          isAdmin,
-          user: u ? { uid: u.uid, name: isAdmin ? "관리자" : (u.displayName || "회원"), photo: u.photoURL || "" } : null
+          isAdmin: isAdminUser(u),   // 관리자 권한 보유 여부 (구글 관리자 계정은 앱에서 '관리자 모드'를 켜야 실제로 사용)
+          adminOnly,
+          user: u ? { uid: u.uid, name: adminOnly ? "관리자" : (u.displayName || "회원"), photo: u.photoURL || "" } : null
         });
       });
-    },
-    async saveProfile(data) {   // 로그인한 본인 문서(profiles/{uid})만 저장
-      const u = auth.currentUser; if (!u) throw Object.assign(new Error("로그인 필요"), { code: "unauthenticated" });
-      await setDoc(doc(db, "profiles", u.uid), { name: String(data.name || "").slice(0, 12), avatar: String(data.avatar || ""), updatedAt: serverTimestamp() }, { merge: true });
     },
     login: (id, pw) => au.signInWithEmailAndPassword(auth, id, pw),
     loginGoogle: () => au.signInWithPopup(auth, new au.GoogleAuthProvider()),

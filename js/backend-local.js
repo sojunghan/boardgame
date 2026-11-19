@@ -31,15 +31,18 @@
       return r;
     };
     const emit = () => { const d = load(); for (const k in subs) subs[k].forEach(cb => cb(view(k, d[k]))); };
-    const isAdmin = () => localStorage.getItem(ADMIN_KEY) === "1";
+    const adminFlag = () => localStorage.getItem(ADMIN_KEY) === "1";   // 아이디/비밀번호로 로그인한 '관리자 전용' 계정
     const member = () => { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; } };
+    // 관리자 권한이 있는 회원 계정(구글 관리자 흉내): 평소엔 일반 회원, 앱에서 '관리자 모드'를 켰을 때만 관리자로 동작
+    const memberCanAdmin = () => { const m = member(); return !!m && (admin.memberNames || []).includes(m.name); };
+    const isAdmin = () => adminFlag() || memberCanAdmin();
     const me = () => {
-      if (isAdmin()) return { uid: "admin", name: "관리자" };
+      if (adminFlag()) return { uid: "admin", name: "관리자" };
       const m = member(); if (!m) return null;
       const p = load().profiles.find(x => x.id === m.uid);   // 프로필이 있으면 프로필 이름 우선
       return p ? { ...m, name: p.name || m.name } : m;
     };
-    const authState = () => ({ user: me(), isAdmin: isAdmin() });
+    const authState = () => ({ user: me(), isAdmin: isAdmin(), adminOnly: adminFlag() });
     const emitAuth = () => authSubs.forEach(cb => cb(authState()));
     window.addEventListener("storage", e => { if ([KEY, USER_KEY, ADMIN_KEY].includes(e.key)) { emit(); emitAuth(); } });
     const mutate = fn => { const d = load(); fn(d); save(d); emit(); };
@@ -74,7 +77,7 @@
       // 프로필(이름/아이콘): 로그인한 본인 것만 저장
       async saveProfile(data) {
         const u = member();
-        if (!u || isAdmin()) throw denied();
+        if (!u || adminFlag()) throw denied();
         mutate(d => {
           const p = d.profiles.find(x => x.id === u.uid);
           const next = { name: String(data.name || "").slice(0, 12), avatar: String(data.avatar || ""), updatedAt: nowTs() };
