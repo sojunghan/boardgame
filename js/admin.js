@@ -1,5 +1,5 @@
 (async () => {
-const { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL } = window.BG_CONFIG;
+const { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS } = window.BG_CONFIG;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s = "") => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -9,7 +9,7 @@ const state = { isAdmin: false, sessions: [], logs: [], subscribed: false };
 let backend;
 try {
   backend = BACKEND === "firebase"
-    ? await (await import("./backend-firebase.js")).createFirebaseBackend(firebaseConfig, ADMIN_EMAIL)
+    ? await (await import("./backend-firebase.js")).createFirebaseBackend(firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS)
     : window.createLocalBackend(LOCAL_ADMIN);
 } catch (err) {
   $("#setupNotice").innerHTML = "<b>백엔드를 불러오지 못했어요.</b> " + esc(err.message);
@@ -95,6 +95,14 @@ $$(".tab").forEach(t => t.addEventListener("click", () => {
 }));
 $("#logFilter").addEventListener("change", renderLogs);
 $("#logSearch").addEventListener("input", renderLogs);
+$("#gAdminBtn").addEventListener("click", async () => {
+  try {
+    if (backend.mode === "local") return toast("로컬 테스트 모드에서는 아이디/비밀번호로 로그인하세요");
+    await backend.loginGoogle();
+    // 관리자 지정 계정이 아니면 안내 후 로그아웃
+    setTimeout(async () => { if (!state.isAdmin) { await backend.logout(); $("#loginError").textContent = "이 구글 계정은 관리자로 등록되어 있지 않아요."; } }, 800);
+  } catch (err) { toast("로그인 실패: " + (err.code || err.message)); }
+});
 $("#logoutBtn").addEventListener("click", async () => { await backend.logout(); toast("로그아웃했어요"); });
 $("#loginForm").addEventListener("submit", async e => {
   e.preventDefault();

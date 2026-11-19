@@ -1,5 +1,5 @@
 // 실서버용 백엔드: Firebase(Firestore + Auth). 회원은 구글 로그인, 관리자는 이메일/비밀번호.
-export async function createFirebaseBackend(firebaseConfig, adminEmail) {
+export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoogleEmails = []) {
   const V = "10.14.1", base = `https://www.gstatic.com/firebasejs/${V}/`;
   const { initializeApp } = await import(base + "firebase-app.js");
   const fs = await import(base + "firebase-firestore.js");
@@ -10,11 +10,13 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail) {
   const db = getFirestore(app), auth = au.getAuth(app);
   const cache = { games: [], reviews: [], sessions: [], profiles: [] };   // 로그 제목/작성자 이름 생성용 최신 데이터
 
+  // 관리자 판정: 이메일/비밀번호 관리자 계정, 또는 구글이 이메일을 인증한 지정 계정
+  const isAdminUser = u => !!u && (u.email === adminEmail || (adminGoogleEmails.includes(u.email) && u.emailVerified === true));
   const toDate = ts => ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
   const sTitle = s => { const d = toDate(s.date); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${(s.episode || "").slice(0, 30)}`.trim(); };
   const curName = () => {
     const u = auth.currentUser; if (!u) return null;
-    if (u.email === adminEmail) return "관리자";
+    if (isAdminUser(u)) return "관리자";
     return cache.profiles.find(p => p.id === u.uid)?.name || u.displayName || "회원";
   };
 
@@ -46,7 +48,7 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail) {
     },
     onAuth(cb) {
       au.onAuthStateChanged(auth, u => {
-        const isAdmin = !!u && u.email === adminEmail;
+        const isAdmin = isAdminUser(u);
         cb({
           isAdmin,
           user: u ? { uid: u.uid, name: isAdmin ? "관리자" : (u.displayName || "회원"), photo: u.photoURL || "" } : null

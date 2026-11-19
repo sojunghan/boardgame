@@ -2,9 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 관리자 이메일을 js/firebase-config.js 의 ADMIN_EMAIL 과 동일해야 해요.
+    // 관리자: (1) 이메일/비밀번호 관리자 계정  (2) 구글이 이메일을 인증한 지정 계정
+    // js/firebase-config.js 의 ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS 와 동일해야 해요.
     function isAdmin() {
-      return request.auth != null && request.auth.token.email == 'admin@boardgame.club';
+      return request.auth != null && (
+        request.auth.token.email == 'admin@boardgame.club'
+        || (request.auth.token.email == 'sjh2076@gmail.com' && request.auth.token.email_verified == true)
+      );
     }
     function signedIn() { return request.auth != null; }
 
@@ -52,7 +56,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // 게임 후기/평점: 게스트도 작성 가능(플레이한 게임만). 로그인 상태로 쓰면 uid가 기록되어 본인이 삭제 가능
+    // 게임 후기/평점: 로그인한 회원은 모든 게임에 작성 가능 / 게스트는 플레이한 게임(playCount>0)만. 로그인 상태로 쓰면 uid가 기록되어 본인이 삭제 가능
     match /reviews/{id} {
       allow read: if true;
       allow create: if request.resource.data.keys().hasOnly(['gameId','nickname','rating','comment','createdAt','uid'])
@@ -63,7 +67,8 @@ service cloud.firestore {
         && request.resource.data.comment is string && request.resource.data.comment.size() <= 500
         && request.resource.data.createdAt == request.time
         && (!('uid' in request.resource.data) || (signedIn() && request.resource.data.uid == request.auth.uid))
-        && get(/databases/$(database)/documents/games/$(request.resource.data.gameId)).data.playCount > 0;
+        && exists(/databases/$(database)/documents/games/$(request.resource.data.gameId))
+        && (signedIn() || get(/databases/$(database)/documents/games/$(request.resource.data.gameId)).data.playCount > 0);
       allow update: if false;
       allow delete: if isAdmin() || (signedIn() && resource.data.get('uid', '') == request.auth.uid);
     }

@@ -1,5 +1,5 @@
 (async () => {
-const { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL } = window.BG_CONFIG;
+const { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS } = window.BG_CONFIG;
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -31,7 +31,7 @@ const canTouch = row => !!state.user && (state.isAdmin || row.authorUid === stat
 let backend;
 try {
   backend = BACKEND === "firebase"
-    ? await (await import("./backend-firebase.js")).createFirebaseBackend(firebaseConfig, ADMIN_EMAIL)
+    ? await (await import("./backend-firebase.js")).createFirebaseBackend(firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS)
     : window.createLocalBackend(LOCAL_ADMIN);
 } catch (err) {
   $("#setupNotice").innerHTML = "<b>백엔드를 불러오지 못했어요.</b> " + esc(err.message);
@@ -157,8 +157,8 @@ function renderDetail() {
   const s = stats(g.id);
   const rs = state.reviews.filter(r => r.gameId === g.id).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   const linked = state.sessions.filter(x => !x.deletedAt && (x.gameIds || []).includes(g.id)).sort((a, b) => toMs(b.date) - toMs(a.date));
-  const canReview = (g.playCount || 0) > 0;
-  const savedNick = state.user && !state.isAdmin ? state.user.name : (localStorage.getItem("bg_nick") || "");
+  const canReview = (g.playCount || 0) > 0 || !!state.user;   // 로그인하면 모든 게임에 후기 가능, 게스트는 플레이한 게임만
+  const savedNick = state.user ? state.user.name : (localStorage.getItem("bg_nick") || "");
   // 입력 중인 값 보존
   const keep = { nick: $("#rvNick")?.value ?? savedNick, text: $("#rvText")?.value ?? "" };
   $("#detailBody").innerHTML = `
@@ -196,7 +196,8 @@ function renderDetail() {
       <textarea id="rvText" rows="3" maxlength="500" placeholder="한줄 후기 (선택)">${esc(keep.text)}</textarea>
       <button class="btn" type="submit">등록</button>
       <span class="hint">${state.user ? "로그인 상태라 내 후기는 직접 삭제할 수 있어요." : "게스트로 남기면 나중에 직접 삭제할 수 없어요. (Google 로그인하면 가능)"}</span>
-    </form>` : `<p class="hint">우리 모임에서 플레이한 게임만 후기를 남길 수 있어요.</p>`}`;
+    </form>` : `<div class="rounded-xl border-[3px] border-dashed border-ink bg-white p-3 text-sm font-bold">아직 모임에서 플레이한 기록이 없는 게임이에요. <b>로그인하면</b> 언제든 후기와 평점을 남길 수 있어요.
+      <button type="button" class="btn small mt-2" data-login>Google 로그인</button></div>`}`;
 }
 
 function renderAll() {
@@ -253,6 +254,7 @@ $("#detailBody").addEventListener("click", async e => {
   const t = e.target;
   const go = t.closest("[data-goto-session]");
   if (go) return gotoSession(go.dataset.gotoSession);
+  if (t.closest("[data-login]")) return requireLogin("로그인하면 이 게임에도 후기와 평점을 남길 수 있어요.", () => renderDetail());
   if (t.closest("#starInput span")) {
     state.pendingRating = +t.closest("#starInput span").dataset.n;
     $$("#starInput span").forEach(s => s.classList.toggle("on", +s.dataset.n <= state.pendingRating));
@@ -286,7 +288,7 @@ $("#detailBody").addEventListener("submit", async e => {
     await backend.addReview({
       gameId: state.openGameId, nickname, rating: state.pendingRating,
       comment: $("#rvText").value.trim(),
-      ...(state.user && !state.isAdmin ? { uid: state.user.uid } : {})   // 게스트는 uid 없음
+      ...(state.user ? { uid: state.user.uid } : {})   // 로그인 상태면 uid 기록(본인 삭제 가능), 게스트는 없음
     });
     localStorage.setItem("bg_nick", nickname);
     state.pendingRating = 0; $("#rvText").value = "";
@@ -307,6 +309,25 @@ async function googleLogin() {
     return true;
   } catch (err) { toast("로그인 실패: " + (err.code || err.message)); }
 }
+// 로그인이 필요한 기능을 눌렀을 때: 안내 창을 띄우고, 로그인에 성공하면 하려던 동작을 이어서 실행
+let pendingAfterLogin = null;
+function requireLogin(msg, then) {
+  if (state.user) { then?.(); return true; }
+  pendingAfterLogin = then || null;
+  $("#loginPromptMsg").textContent = msg || "이 기능은 로그인 후 사용할 수 있어요.";
+  openModal("#loginPromptModal");
+  return false;
+}
+$("#loginPromptBtn").addEventListener("click", async () => {
+  if (!(await googleLogin())) return;
+  $("#loginPromptModal").classList.add("hidden");
+  if ($$(".modal").every(m => m.classList.contains("hidden"))) document.body.style.overflow = "";
+  for (let i = 0; i < 20 && !state.user; i++) await new Promise(r => setTimeout(r, 100));   // 로그인 상태 반영 대기
+  await new Promise(r => setTimeout(r, 60));   // 첫 로그인이면 프로필 설정 창이 먼저 뜰 시간을 줌
+  const cb = pendingAfterLogin; pendingAfterLogin = null;
+  // 첫 로그인이라 프로필 설정 창이 떠 있으면 그것부터 마치게 하고 이어가지 않음
+  if (cb && state.user && $("#profileModal").classList.contains("hidden")) cb();
+});
 $("#userBtn").addEventListener("click", async () => {
   if (state.user) { await backend.logout(); toast("로그아웃했어요"); return; }
   googleLogin();
@@ -454,13 +475,7 @@ function openSessionForm(s) {
   renderPhotoPreview();
   openModal("#sessionModal");
 }
-$("#addSessionBtn").addEventListener("click", async () => {
-  if (!state.user) {
-    toast("활동 후기는 Google 로그인 후 작성할 수 있어요");
-    if (!(await googleLogin())) return;
-  }
-  openSessionForm(null);
-});
+$("#addSessionBtn").addEventListener("click", () => requireLogin("활동 후기를 쓰려면 로그인이 필요해요.", () => openSessionForm(null)));
 $("#photoInput").addEventListener("change", async e => {
   const files = [...e.target.files]; e.target.value = "";
   for (const file of files) {

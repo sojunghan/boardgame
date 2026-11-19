@@ -113,7 +113,8 @@
       // 게임 후기: 게스트 작성 가능(uid 없음). 로그인 상태면 uid가 붙어 본인이 삭제 가능.
       async addReview(r) {
         const d0 = load(); const g = d0.games.find(x => x.id === r.gameId);
-        if (!g || !(g.playCount > 0)) throw denied();
+        if (!g) throw denied();
+        if (!me() && !(g.playCount > 0)) throw denied();   // 게스트는 플레이한 게임만, 로그인하면 모든 게임
         if (r.uid && (!me() || me().uid !== r.uid)) throw denied();
         mutate(d => {
           const nid = uid();

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=16">
+  <link rel="stylesheet" href="css/style.css?v=20">
 </head>
 <body>
   <header class="sticky top-0 z-40 border-b-[3px] border-ink bg-nb-yellow">
@@ -156,7 +156,18 @@
     </div>
   </div>
 
-  <!-- 로그인 모달 -->
+  <!-- 로그인 필요 안내 모달 -->
+  <div id="loginPromptModal" class="modal hidden">
+    <div class="modal-box small text-center">
+      <button class="close" data-close>&times;</button>
+      <h2 class="mb-2">🔐 로그인이 필요해요</h2>
+      <p id="loginPromptMsg" class="mb-4 font-bold"></p>
+      <button id="loginPromptBtn" class="btn w-full">Google 계정으로 로그인</button>
+      <p class="hint mt-3">로그인하면 활동 후기 작성·수정·삭제, 모든 게임 후기·평점, 프로필 설정을 할 수 있어요.</p>
+    </div>
+  </div>
+
+  <!-- 관리자 로그인 모달 -->
   <div id="loginModal" class="modal hidden">
     <div class="modal-box small">
       <button class="close" data-close>&times;</button>
@@ -174,10 +185,10 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="js/firebase-config.js?v=16"></script>
-  <script src="js/backend-local.js?v=16"></script>
-  <script src="js/games-seed.js?v=16"></script>
-  <script src="js/avatars.js?v=16"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="js/firebase-config.js?v=20"></script>
+  <script src="js/backend-local.js?v=20"></script>
+  <script src="js/games-seed.js?v=20"></script>
+  <script src="js/avatars.js?v=20"></script>
+  <script src="js/app.js?v=20"></script>
 </body>
 </html>

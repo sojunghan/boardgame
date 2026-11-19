@@ -19,4 +19,8 @@ const firebaseConfig = {
 // [firebase 모드] Firebase Authentication에 만든 관리자 이메일 (firestore.rules와 동일해야 함)
 const ADMIN_EMAIL = "admin@boardgame.club";
 
-window.BG_CONFIG = { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL };
+// [firebase 모드] Google 로그인만으로 관리자 권한을 받는 계정들 (firestore.rules의 isAdmin()과 동일해야 함)
+// 구글이 인증한(이메일 확인된) 계정만 인정돼요.
+const ADMIN_GOOGLE_EMAILS = ["sjh2076@gmail.com"];
+
+window.BG_CONFIG = { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS };
