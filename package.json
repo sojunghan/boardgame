@@ -1,0 +1,12 @@
+{
+  "name": "boardgame-club",
+  "private": true,
+  "description": "보드게임 소모임 페이지 (정적 사이트 + Tailwind CSS)",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i src/input.css -o css/style.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i src/input.css -o css/style.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

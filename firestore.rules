@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 관리자 이메일을 js/firebase-config.js 의 ADMIN_EMAIL 과 동일해야 해요.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'admin@boardgame.club';
+    }
+    function signedIn() { return request.auth != null; }
+
+    // 게임 목록: 누구나 보기, 관리자만 추가/수정/삭제 (플레이 횟수 포함)
+    match /games/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 활동 후기: 누구나 보기 / Google 로그인한 회원만 작성 / 작성자 본인(또는 관리자)만 수정·삭제
+    match /sessions/{id} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.photos is list && request.resource.data.photos.size() <= 4
+        && request.resource.data.episode is string && request.resource.data.episode.size() <= 1000;
+      // 삭제는 deletedAt 을 채우는 '숨김 처리'. 이미 삭제된 글은 관리자만 건드릴 수 있음(복원=deletedAt을 null로)
+      allow update: if (isAdmin() || (signedIn() && resource.data.authorUid == request.auth.uid
+                                       && resource.data.get('deletedAt', null) == null))
+        && request.resource.data.authorUid == resource.data.authorUid
+        && request.resource.data.photos.size() <= 4;
+      allow delete: if isAdmin();   // 영구 삭제는 관리자만
+    }
+
+    // 프로필(이름/아이콘): 누구나 보기, 본인 것만 저장
+    match /profiles/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name','avatar','updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 12
+        && request.resource.data.avatar is string && request.resource.data.avatar.size() <= 30000;
+      allow delete: if isAdmin();
+    }
+
+    // 활동 로그: 관리자만 조회, 누구나(로그인 여부 무관) 기록 추가 가능하되 수정/삭제는 불가
+    match /logs/{id} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly(['action','targetType','targetId','title','detail','actorUid','actorName','createdAt'])
+        && request.resource.data.action is string && request.resource.data.action.size() <= 40
+        && request.resource.data.title is string && request.resource.data.title.size() <= 120
+        && request.resource.data.detail is string && request.resource.data.detail.size() <= 300
+        && request.resource.data.createdAt == request.time
+        && (request.resource.data.actorUid == null || (signedIn() && request.resource.data.actorUid == request.auth.uid));
+      allow update, delete: if false;
+    }
+
+    // 게임 후기/평점: 게스트도 작성 가능(플레이한 게임만). 로그인 상태로 쓰면 uid가 기록되어 본인이 삭제 가능
+    match /reviews/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['gameId','nickname','rating','comment','createdAt','uid'])
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() > 0 && request.resource.data.nickname.size() <= 20
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && request.resource.data.comment is string && request.resource.data.comment.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && (!('uid' in request.resource.data) || (signedIn() && request.resource.data.uid == request.auth.uid))
+        && get(/databases/$(database)/documents/games/$(request.resource.data.gameId)).data.playCount > 0;
+      allow update: if false;
+      allow delete: if isAdmin() || (signedIn() && resource.data.get('uid', '') == request.auth.uid);
+    }
+  }
+}
