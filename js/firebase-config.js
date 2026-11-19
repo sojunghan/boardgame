@@ -9,7 +9,9 @@ const LOCAL_ADMIN = { id: "admin", password: "1234", memberNames: ["운영자"] 
 // (이 값들은 공개되어도 괜찮습니다. 보안은 firestore.rules가 담당합니다.)
 const firebaseConfig = {
   apiKey: "AIzaSyARP8NhZbuExzG8QKAAxe0CgDAT2wmGgN8",
-  authDomain: "nextjenga-2645a.firebaseapp.com",
+  // Firebase Hosting(*.web.app / *.firebaseapp.com)에서 열면 사이트와 로그인 서버가 같은 도메인이 돼서
+  // 브라우저의 타사 쿠키 차단에 걸리지 않아요. 그 외(GitHub Pages 등)에서는 기본 도메인을 써요.
+  authDomain: /(\.web\.app|\.firebaseapp\.com)$/.test(location.hostname) ? location.host : "nextjenga-2645a.firebaseapp.com",
   projectId: "nextjenga-2645a",
   storageBucket: "nextjenga-2645a.firebasestorage.app",
   messagingSenderId: "297585894354",
@@ -23,4 +25,9 @@ const ADMIN_EMAIL = "admin@boardgame.club";
 // 구글이 인증한(이메일 확인된) 계정만 인정돼요.
 const ADMIN_GOOGLE_EMAILS = ["sjh2076@gmail.com"];
 
-window.BG_CONFIG = { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS };
+// [firebase 모드] 구글 로그인용 웹 클라이언트 ID (공개돼도 되는 값).
+// 채우면 github.io 같은 다른 도메인에서도 구글 로그인이 안정적으로 동작해요(Firebase 로그인 팝업 대신 구글 로그인 창을 직접 사용).
+// 비워 두면 기존 방식(Firebase 팝업)을 써요. Firebase 콘솔 > Authentication > 로그인 방법 > Google > 웹 SDK 구성 > "웹 클라이언트 ID"
+const GOOGLE_CLIENT_ID = "";
+
+window.BG_CONFIG = { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS, GOOGLE_CLIENT_ID };

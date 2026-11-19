@@ -1,6 +1,6 @@
 // 실서버용 백엔드: Firebase(Firestore + Auth). 회원은 구글 로그인, 관리자는 이메일/비밀번호.
-export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoogleEmails = []) {
-  const V = "10.14.1", base = `https://www.gstatic.com/firebasejs/${V}/`;
+export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoogleEmails = [], googleClientId = "") {
+  const V = "9.23.0", base = `https://www.gstatic.com/firebasejs/${V}/`;
   const { initializeApp } = await import(base + "firebase-app.js");
   const fs = await import(base + "firebase-firestore.js");
   const au = await import(base + "firebase-auth.js");
@@ -8,6 +8,23 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app), auth = au.getAuth(app);
+  // 구글 로그인 창(Google Identity Services)을 미리 불러 둠: 클릭 즉시 팝업이 열려야 차단되지 않아요.
+  const gisReady = googleClientId ? new Promise(res => {
+    if (window.google?.accounts?.oauth2) return res(true);
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+    s.onload = () => res(true); s.onerror = () => res(false);
+    document.head.appendChild(s);
+  }) : Promise.resolve(false);
+  const gisAccessToken = () => new Promise((resolve, reject) => {
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: googleClientId, scope: "openid email profile", prompt: "select_account",
+      callback: r => r.error ? reject(Object.assign(new Error(r.error_description || r.error), { code: "auth/" + r.error })) : resolve(r.access_token),
+      error_callback: e => reject(Object.assign(new Error(e?.message || e?.type || "popup error"), { code: e?.type === "popup_closed" ? "auth/popup-closed-by-user" : "auth/" + (e?.type || "gis-error"), gis: true }))
+    });
+    client.requestAccessToken();
+  });
+
   const cache = { games: [], reviews: [], sessions: [], profiles: [] };   // 로그 제목/작성자 이름 생성용 최신 데이터
 
   // 관리자 판정: 이메일/비밀번호 관리자 계정, 또는 구글이 이메일을 인증한 지정 계정
@@ -57,7 +74,20 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
       });
     },
     login: (id, pw) => au.signInWithEmailAndPassword(auth, id, pw),
-    loginGoogle: () => au.signInWithPopup(auth, new au.GoogleAuthProvider()),
+    async loginGoogle() {
+      // 1) 구글 로그인 창을 직접 사용 (Firebase 인증 처리 페이지를 거치지 않아 다른 도메인에서도 안정적)
+      if (googleClientId && await gisReady) {
+        try {
+          const token = await gisAccessToken();
+          return await au.signInWithCredential(auth, au.GoogleAuthProvider.credential(null, token));
+        } catch (e) {
+          if (e.code === "auth/popup-closed-by-user") throw e;   // 사용자가 직접 닫음
+          console.warn("구글 로그인 창 실패, 기존 방식으로 재시도", e);
+        }
+      }
+      // 2) 기존 방식(Firebase 팝업)
+      return au.signInWithPopup(auth, new au.GoogleAuthProvider());
+    },
     logout: () => au.signOut(auth),
 
     async saveGame(id, data) {

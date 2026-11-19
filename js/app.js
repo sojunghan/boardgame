@@ -1,5 +1,5 @@
 (async () => {
-const { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS } = window.BG_CONFIG;
+const { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS, GOOGLE_CLIENT_ID } = window.BG_CONFIG;
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -31,7 +31,7 @@ const canTouch = row => !!state.user && (state.isAdmin || row.authorUid === stat
 let backend;
 try {
   backend = BACKEND === "firebase"
-    ? await (await import("./backend-firebase.js")).createFirebaseBackend(firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS)
+    ? await (await import("./backend-firebase.js")).createFirebaseBackend(firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS, GOOGLE_CLIENT_ID)
     : window.createLocalBackend(LOCAL_ADMIN);
 } catch (err) {
   $("#setupNotice").innerHTML = "<b>백엔드를 불러오지 못했어요.</b> " + esc(err.message);

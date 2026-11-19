@@ -63,6 +63,19 @@ git push -u origin main
 GitHub 레포 **Settings > Pages > Branch: main / (root)** 선택 → 몇 분 뒤
 `https://<내아이디>.github.io/<레포이름>/` 으로 접속할 수 있어요.
 
+## Firebase Hosting으로도 배포하기 (구글 로그인이 안 되는 PC용)
+
+GitHub Pages(`github.io`)는 로그인 서버(`firebaseapp.com`)와 도메인이 달라서, 타사 쿠키를 막는 브라우저에서는 구글 로그인이 "The requested action is invalid"로 실패할 수 있어요.
+같은 프로젝트의 Firebase Hosting으로 열면 같은 도메인이라 이 문제가 없어요.
+
+```bash
+node -v                                    # Node.js가 설치돼 있어야 해요 (없으면 https://nodejs.org 에서 LTS 설치)
+npx firebase-tools login                   # 브라우저가 열리면 구글 계정으로 로그인
+npx firebase-tools deploy --only hosting   # 배포 (코드를 고칠 때마다 다시 실행)
+```
+
+배포 주소: `https://nextjenga-2645a.web.app` (GitHub Pages 주소도 그대로 쓸 수 있어요)
+
 ## 코드로 게임 추가하기 (자동 반영)
 
 `js/games-seed.js`의 목록에 게임을 추가하고 `git push`하면, **관리자 권한이 있는 계정이 사이트에 접속할 때** 서버에 없는 게임만 자동으로 추가되고 "N개 게임이 추가되었어요" 토스트가 떠요.
