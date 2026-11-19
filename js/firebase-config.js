@@ -28,6 +28,6 @@ const ADMIN_GOOGLE_EMAILS = ["sjh2076@gmail.com"];
 // [firebase 모드] 구글 로그인용 웹 클라이언트 ID (공개돼도 되는 값).
 // 채우면 github.io 같은 다른 도메인에서도 구글 로그인이 안정적으로 동작해요(Firebase 로그인 팝업 대신 구글 로그인 창을 직접 사용).
 // 비워 두면 기존 방식(Firebase 팝업)을 써요. Firebase 콘솔 > Authentication > 로그인 방법 > Google > 웹 SDK 구성 > "웹 클라이언트 ID"
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = "297585894354-nq0juksj6i4t567lgf323ruccddg660b.apps.googleusercontent.com";
 
 window.BG_CONFIG = { BACKEND, LOCAL_ADMIN, firebaseConfig, ADMIN_EMAIL, ADMIN_GOOGLE_EMAILS, GOOGLE_CLIENT_ID };
