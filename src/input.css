@@ -38,6 +38,7 @@
   .error { @apply min-h-[1.2em] text-sm font-extrabold text-nb-red; }
   .empty { @apply rounded-xl border-[3px] border-dashed border-ink bg-white/70 py-10 text-center font-bold text-ink/60; }
   .count { @apply font-black text-nb-red; }
+  .num-badge { @apply inline-block rounded-lg border-[3px] border-ink bg-nb-pink px-3 py-0.5 font-display text-lg shadow-nbxs; }
   .notice { @apply mt-4 rounded-xl border-[3px] border-ink bg-nb-blue px-4 py-3 text-sm font-bold shadow-nb; }
   .notice code { @apply rounded border-2 border-ink bg-white px-1.5 font-mono text-xs font-bold; }
 

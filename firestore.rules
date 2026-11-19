@@ -33,6 +33,11 @@ service cloud.firestore {
       allow delete: if isAdmin();   // 영구 삭제는 관리자만
     }
 
+    // 내부 설정(기본 게임 자동 반영 기록 등): 관리자만
+    match /meta/{doc} {
+      allow read, write: if isAdmin();
+    }
+
     // 프로필(이름/아이콘): 누구나 보기, 본인 것만 저장
     match /profiles/{uid} {
       allow read: if true;

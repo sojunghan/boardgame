@@ -4,7 +4,7 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
   const { initializeApp } = await import(base + "firebase-app.js");
   const fs = await import(base + "firebase-firestore.js");
   const au = await import(base + "firebase-auth.js");
-  const { getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, increment, query, orderBy, limit, writeBatch, Timestamp } = fs;
+  const { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, increment, query, orderBy, limit, writeBatch, Timestamp } = fs;
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app), auth = au.getAuth(app);
@@ -43,7 +43,7 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
       onSnapshot(q, s => {
         const rows = s.docs.map(d => ({ id: d.id, ...d.data() }));
         if (cache[name]) cache[name] = rows;
-        cb(rows);
+        cb(rows, { fromCache: s.metadata.fromCache });
       }, onErr);
     },
     onAuth(cb) {
@@ -119,11 +119,19 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
       await deleteDoc(doc(db, "sessions", id));
       log("session.purge", "session", id, s ? sTitle(s) : "", "영구 삭제");
     },
-    async seed(list) {
+    // 코드(games-seed.js)의 기본 게임 자동 반영용
+    async getSyncedSeeds() {
+      const snap = await getDoc(doc(db, "meta", "seedState"));
+      return snap.exists() ? (snap.data().names || []) : null;
+    },
+    async seedNew(list, syncedNames) {
       const batch = writeBatch(db);
-      list.forEach(g => batch.set(doc(collection(db, "games")), { image: "", playCount: 0, ...g, createdAt: serverTimestamp() }));
+      // 같은 게임이 동시에 두 번 들어가지 않도록 이름으로 만든 고정 ID 사용
+      const idOf = name => "seed_" + [...name.replace(/\s/g, "")].map(c => c.codePointAt(0).toString(36)).join("");
+      list.forEach(g => batch.set(doc(db, "games", idOf(g.name)), { image: "", playCount: 0, ...g, createdAt: serverTimestamp() }));
+      batch.set(doc(db, "meta", "seedState"), { names: syncedNames, updatedAt: serverTimestamp() });
       await batch.commit();
-      log("game.seed", "game", "", "기본 게임 일괄 등록", `${list.length}개`);
+      if (list.length) log("game.seed", "game", "", "기본 게임 자동 반영", `${list.length}개: ${list.map(g => g.name).join(", ").slice(0, 200)}`);
     }
   };
 }

@@ -19,6 +19,7 @@
       const d = load();
       if (d.games.length === 0) {
         window.SEED_GAMES.forEach((g, i) => d.games.push({ id: uid(), image: "", playCount: 0, createdAt: { seconds: Math.floor(Date.now() / 1000) - i }, ...g }));
+        d.seedSynced = window.SEED_GAMES.map(g => g.name);   // 이미 반영한 기본 게임 이름 기록
         save(d);
       }
       localStorage.setItem(SEEDED_KEY, "1");
@@ -187,11 +188,14 @@
         needAdmin();
         mutate(d => { const t = d.sessions.find(x => x.id === id); if (t) log(d, "session.purge", "session", id, sTitle(t), "영구 삭제"); d.sessions = d.sessions.filter(x => x.id !== id); });
       },
-      async seed(list) {
+      // 코드(games-seed.js)의 기본 게임 자동 반영용: 이미 반영한 이름 기록을 읽고, 새 게임만 추가
+      async getSyncedSeeds() { needAdmin(); return load().seedSynced || null; },
+      async seedNew(list, syncedNames) {
         needAdmin();
         mutate(d => {
           list.forEach((g, i) => d.games.push({ id: uid(), image: "", playCount: 0, createdAt: { seconds: Math.floor(Date.now() / 1000) - i }, ...g }));
-          log(d, "game.seed", "game", "", "기본 게임 일괄 등록", `${list.length}개`);
+          d.seedSynced = syncedNames;
+          if (list.length) log(d, "game.seed", "game", "", "기본 게임 자동 반영", `${list.length}개: ${list.map(g => g.name).join(", ").slice(0, 200)}`);
         });
       }
     };

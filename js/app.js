@@ -6,7 +6,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s = "") => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const safeImg = u => (/^(https?:\/\/|data:image\/)/i.test(u || "") ? u : "");
 
-const state = { games: [], reviews: [], sessions: [], profiles: [], profilesLoaded: false, rawUser: null, promptedFor: null, pAvatar: "", isAdmin: false, canAdmin: false, adminOnly: false, adminMode: sessionStorage.getItem("bg_admin_mode") === "1", user: null, openGameId: null, editGameId: null, editSessionId: null, photos: [], pendingRating: 0, editReviewId: null, editRating: 0, editText: "" };
+const state = { games: [], reviews: [], sessions: [], profiles: [], profilesLoaded: false, rawUser: null, promptedFor: null, pAvatar: "", isAdmin: false, canAdmin: false, adminOnly: false, adminMode: sessionStorage.getItem("bg_admin_mode") === "1", user: null, openGameId: null, editGameId: null, editSessionId: null, photos: [], gamesLoaded: false, seedChecked: false, pendingRating: 0, editReviewId: null, editRating: 0, editText: "" };
 
 // ---------- 프로필 / 아바타 ----------
 // 캐릭터 기본 아이콘 16종은 js/avatars.js(직접 그린 SVG). 프로필에는 "preset:id" 또는 업로드한 사진(data URL)이 저장돼요.
@@ -100,6 +100,8 @@ function renderGames() {
     if (sort === "recent") return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
     return a.name.localeCompare(b.name, "ko");
   });
+  // 보유 게임 개수 (검색 중이면 검색 결과 수도 함께)
+  $("#gameCount").textContent = q ? `전체 ${state.games.length}개 · 검색 ${list.length}개` : `${state.games.length}개`;
   $("#gameGrid").innerHTML = list.length ? list.map(g => {
     const s = stats(g.id);
     return `<article class="card" data-id="${g.id}">
@@ -238,8 +240,9 @@ function renderAll() {
 
 // ---------- 실시간 구독 ----------
 for (const name of ["games", "reviews", "sessions", "profiles"]) {
-  backend.subscribe(name, rows => {
+  backend.subscribe(name, (rows, meta) => {
     state[name] = rows;
+    if (name === "games" && !meta?.fromCache) { state.gamesLoaded = true; syncSeedGames(); }
     if (name === "profiles") { state.profilesLoaded = true; applyProfile(); maybePromptProfile(); }
     renderAll();
   }, e => toast("불러오기 실패: " + (e.code || e.message)));
@@ -253,7 +256,28 @@ function recomputeMode() {
 backend.onAuth(({ user, isAdmin, adminOnly }) => {
   state.rawUser = user; state.canAdmin = !!isAdmin; state.adminOnly = !!adminOnly;
   recomputeMode(); maybePromptProfile(); renderAll();
+  syncSeedGames();
 });
+
+// 코드(games-seed.js)에 추가한 게임을 관리자 권한 계정이 접속했을 때 서버에 자동 반영 (새 게임만, 이미 반영한 건 지워도 되살리지 않음)
+async function syncSeedGames() {
+  if (state.seedChecked || !state.canAdmin || !state.gamesLoaded || !Array.isArray(window.SEED_GAMES)) return;
+  state.seedChecked = true;
+  try {
+    const norm = n => n.replace(/\s/g, "").toLowerCase();
+    const have = new Set(state.games.map(g => norm(g.name)));
+    const synced = await backend.getSyncedSeeds();                       // 처음이면 null → 지금 있는 게임들을 '반영됨'으로 간주
+    const done = new Set((synced || state.games.map(g => g.name)).map(norm));
+    const todo = window.SEED_GAMES.filter(g => !have.has(norm(g.name)) && !done.has(norm(g.name)));
+    const names = [...new Set([...(synced || []), ...state.games.map(g => g.name), ...window.SEED_GAMES.map(g => g.name)])];
+    if (!todo.length && synced && names.length === synced.length) return;   // 바뀐 게 없음
+    await backend.seedNew(todo, names);
+    if (todo.length) toast(`${todo.length}개 게임이 추가되었어요 🎲`);
+  } catch (err) {
+    console.error("기본 게임 자동 반영 실패", err);
+    toast("게임 자동 반영 실패: " + (err.code || err.message));
+  }
+}
 
 // ---------- 이벤트 ----------
 function showTab(name) {
@@ -481,26 +505,6 @@ $("#gameForm").addEventListener("submit", async e => {
     closeModals(); toast("저장했어요");
   } catch (err) { toast("저장 실패: " + (err.code || err.message)); }
   btn.disabled = false;
-});
-
-// ---------- 기본 게임 일괄 등록 ----------
-$("#seedBtn").addEventListener("click", async () => {
-  try {
-    toast("게임 목록을 불러오는 중…");
-    const SEED_GAMES = window.SEED_GAMES;
-    const norm = s => s.replace(/\s/g, "").toLowerCase();
-    const byName = new Map(state.games.map(g => [norm(g.name), g]));
-    const todo = SEED_GAMES.filter(g => !byName.has(norm(g.name)));
-    // 이미 등록된 게임 중 베스트 인원이 비어 있으면 초기값으로 채움 (직접 입력한 값은 덮어쓰지 않음)
-    const fill = SEED_GAMES.filter(g => g.bestPlayers && byName.has(norm(g.name)) && !byName.get(norm(g.name)).bestPlayers);
-    if (!todo.length && !fill.length) return toast("이미 모두 등록되어 있어요");
-    if (todo.length) await backend.seed(todo);
-    for (const g of fill) await backend.saveGame(byName.get(norm(g.name)).id, { bestPlayers: g.bestPlayers });
-    toast(`${todo.length}개 등록, 베스트 인원 ${fill.length}개 채움 🎉`);
-  } catch (err) {
-    console.error(err);
-    toast("등록 실패: " + (err.code || err.message));
-  }
 });
 
 // ---------- 활동 후기 (로그인 필요 / 본인만 수정·삭제 / 사진 첨부) ----------
