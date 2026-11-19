@@ -92,7 +92,10 @@
   .meta { @apply flex flex-wrap items-center gap-x-3 gap-y-1 text-[.82rem] font-bold text-ink/70; }
   .rule-snip { @apply mt-2 line-clamp-2 text-sm font-medium text-ink/80; }
   .best { @apply rounded border-2 border-ink bg-nb-yellow px-1.5 text-ink; }
-  .stars { @apply tracking-wide text-nb-orange; text-shadow: 0 0 1px #111, 1px 1px 0 #111; }
+  .stars { @apply inline-flex items-center text-nb-orange; text-shadow: 0 0 1px #111, 1px 1px 0 #111; }
+  .st { @apply relative inline-block not-italic leading-none text-white; }
+  .st.on { @apply text-nb-orange; }
+  .st.half::before { content: "★"; @apply absolute left-0 top-0 w-1/2 overflow-hidden text-nb-orange; text-shadow: none; }
   .score { @apply font-black; }
 
   /* 랭킹 배지 */
@@ -173,9 +176,17 @@
   .review p { @apply mt-1 whitespace-pre-wrap break-words font-medium; }
   .review-form { @apply mt-4 rounded-xl border-[3px] border-ink bg-nb-blue/40 p-4; }
   .review-form input, .review-form textarea { @apply mb-2; }
-  .star-input { @apply mb-2 flex gap-0.5 text-4xl; }
-  .star-input span { @apply cursor-pointer text-white transition-transform hover:scale-125; text-shadow: 0 0 1px #111, 1.5px 1.5px 0 #111, -1.5px 1.5px 0 #111, 1.5px -1.5px 0 #111, -1.5px -1.5px 0 #111; }
-  .star-input span.on { @apply text-nb-yellow; }
+  .star-input { @apply mb-2 flex items-center gap-0.5 text-4xl; }
+  .si {
+    @apply relative inline-block cursor-pointer select-none leading-none text-white transition-transform hover:scale-110;
+    text-shadow: 0 0 1px #111, 1.5px 1.5px 0 #111, -1.5px 1.5px 0 #111, 1.5px -1.5px 0 #111, -1.5px -1.5px 0 #111;
+  }
+  .si b { @apply absolute top-0 z-10 h-full w-1/2; }
+  .si b:first-child { @apply left-0; }
+  .si b:last-child { @apply right-0; }
+  .si.on { @apply text-nb-yellow; }
+  .si.half::before { content: "★"; @apply absolute left-0 top-0 w-1/2 overflow-hidden text-nb-yellow; text-shadow: none; }
+  .rating-val { @apply ml-3 rounded-md border-[3px] border-ink bg-white px-2 py-0.5 font-display text-base shadow-nbxs; }
 
   /* 사진/프로필 */
   .photo-box { @apply max-w-[900px] bg-ink p-2.5 pt-12; }

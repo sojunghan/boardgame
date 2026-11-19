@@ -61,7 +61,17 @@ const fmtDateTime = ts => {
   return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} (${w}) ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 const toMs = ts => ts?.toDate ? ts.toDate().getTime() : ts?.seconds ? ts.seconds * 1000 : +new Date(ts);
-const starStr = avg => { const r = Math.round(avg); return "★".repeat(r) + "☆".repeat(5 - r); };
+// 별점은 0.5점 단위. 평균 같은 값은 가장 가까운 0.5로 맞춰 반쪽 별까지 그려요.
+const toHalf = v => Math.round((+v || 0) * 2) / 2;
+const fmtRating = v => { const h = toHalf(v); return Number.isInteger(h) ? h.toFixed(0) : h.toFixed(1); };
+function starsHtml(value) {
+  const h = toHalf(value);
+  return `<span class="stars" aria-label="${fmtRating(h)}점">${[1, 2, 3, 4, 5].map(n =>
+    `<i class="st ${h >= n ? "on" : h >= n - 0.5 ? "half" : ""}">★</i>`).join("")}</span>`;
+}
+const starPicker = value => `<div class="star-input" id="starInput">${[1, 2, 3, 4, 5].map(n =>
+  `<span class="si ${value >= n ? "on" : value >= n - 0.5 ? "half" : ""}" data-n="${n}"><b data-v="${n - 0.5}"></b><b data-v="${n}"></b>★</span>`).join("")}
+  <span class="rating-val" id="ratingVal">${value ? fmtRating(value) + "점" : "별을 눌러 선택"}</span></div>`;
 function stats(gameId) {
   const rs = state.reviews.filter(r => r.gameId === gameId);
   const avg = rs.length ? rs.reduce((a, r) => a + r.rating, 0) / rs.length : 0;
@@ -125,7 +135,7 @@ function renderRanking() {
     <li data-id="${x.g.id}" class="r${x.rank <= 3 ? x.rank : 0}">
       <div class="no">${x.rank}</div>
       <div class="rthumb">${thumb(x.g)}</div>
-      <div class="info"><b>${esc(x.g.name)}</b><div class="meta"><span class="stars">${starStr(x.avg)}</span><span>리뷰 ${x.count}개</span><span>🎯 ${x.g.playCount || 0}회</span></div></div>
+      <div class="info"><b>${esc(x.g.name)}</b><div class="meta">${starsHtml(x.avg)}<span>리뷰 ${x.count}개</span><span>🎯 ${x.g.playCount || 0}회</span></div></div>
       <div class="big">${x.avg.toFixed(2)}</div></li>`).join("")
     : `<div class="empty">아직 평점이 없어요. 게임을 플레이하고 첫 평점을 남겨보세요!</div>`;
 }
@@ -167,7 +177,7 @@ function renderDetail() {
       <div class="txt">
         <h2>${esc(g.name)}</h2>
         <div class="meta">${g.players ? `<span>👥 ${esc(g.players)}</span>` : ""}${g.bestPlayers ? `<span class="best">⭐ 베스트 ${esc(g.bestPlayers)}</span>` : ""}${g.time ? `<span>⏱ ${esc(g.time)}</span>` : ""}</div>
-        <div style="margin:10px 0"><span class="stars" style="font-size:1.3rem">${s.count ? starStr(s.avg) : "☆☆☆☆☆"}</span>
+        <div style="margin:10px 0"><span style="font-size:1.3rem">${starsHtml(s.count ? s.avg : 0)}</span>
           <span class="score">${s.count ? s.avg.toFixed(2) : "-"}</span> <span class="hint">(리뷰 ${s.count}개)</span></div>
         <div class="counter"><span class="pill">🎯 우리 모임 플레이 ${g.playCount || 0}회</span>
           ${state.isAdmin ? `<button data-pc="-1" title="감소">−</button><button data-pc="1" title="증가">+</button>` : ""}</div>
@@ -184,14 +194,14 @@ function renderDetail() {
       : `<p class="hint">아직 이 게임이 나온 활동 후기가 없어요.</p>`}
     <h3>💬 한줄 후기 & 평점</h3>
     ${rs.length ? rs.map(r => `<div class="review"><div>
-        <span class="who">${r.uid ? whoHtml(r.uid, r.nickname) : esc(r.nickname)}</span> <span class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span><span class="when">${fmtDate(r.createdAt)}</span>
+        <span class="who">${r.uid ? whoHtml(r.uid, r.nickname) : esc(r.nickname)}</span> ${starsHtml(r.rating)} <span class="score text-sm">${fmtRating(r.rating)}</span><span class="when">${fmtDate(r.createdAt)}</span>
         ${r.comment ? `<p>${esc(r.comment)}</p>` : ""}</div>
         ${state.isAdmin || (state.user && r.uid && r.uid === state.user.uid) ? `<button class="btn danger small" data-del-review="${r.id}">삭제</button>` : ""}</div>`).join("")
       : `<p class="hint">아직 후기가 없어요.</p>`}
     ${canReview ? `
     <form id="reviewForm" class="review-form">
-      <b>후기 남기기</b>
-      <div class="star-input" id="starInput">${[1, 2, 3, 4, 5].map(n => `<span data-n="${n}" class="${n <= state.pendingRating ? "on" : ""}">★</span>`).join("")}</div>
+      <b>후기 남기기</b> <span class="hint">(별점은 0.5점 단위)</span>
+      ${starPicker(state.pendingRating)}
       <input id="rvNick" placeholder="닉네임 *" maxlength="20" required value="${esc(keep.nick)}">
       <textarea id="rvText" rows="3" maxlength="500" placeholder="한줄 후기 (선택)">${esc(keep.text)}</textarea>
       <button class="btn" type="submit">등록</button>
@@ -268,9 +278,12 @@ $("#detailBody").addEventListener("click", async e => {
   const go = t.closest("[data-goto-session]");
   if (go) return gotoSession(go.dataset.gotoSession);
   if (t.closest("[data-login]")) return requireLogin("로그인하면 이 게임에도 후기와 평점을 남길 수 있어요.", () => renderDetail());
-  if (t.closest("#starInput span")) {
-    state.pendingRating = +t.closest("#starInput span").dataset.n;
-    $$("#starInput span").forEach(s => s.classList.toggle("on", +s.dataset.n <= state.pendingRating));
+  if (t.closest("#starInput .si")) {   // 별의 왼쪽 절반 = n-0.5점, 오른쪽 절반(또는 별 자체) = n점
+    const half = t.closest("[data-v]");
+    state.pendingRating = half ? +half.dataset.v : +t.closest(".si").dataset.n;
+    const v = state.pendingRating;
+    $$("#starInput .si").forEach(el => { const n = +el.dataset.n; el.className = "si " + (v >= n ? "on" : v >= n - 0.5 ? "half" : ""); });
+    $("#ratingVal").textContent = fmtRating(v) + "점";
     return;
   }
   try {
