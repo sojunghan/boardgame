@@ -73,6 +73,10 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
         });
       });
     },
+    async saveProfile(data) {   // 로그인한 본인 문서(profiles/{uid})만 저장
+      const u = auth.currentUser; if (!u) throw Object.assign(new Error("로그인 필요"), { code: "unauthenticated" });
+      await setDoc(doc(db, "profiles", u.uid), { name: String(data.name || "").slice(0, 12), avatar: String(data.avatar || ""), updatedAt: serverTimestamp() }, { merge: true });
+    },
     login: (id, pw) => au.signInWithEmailAndPassword(auth, id, pw),
     async loginGoogle() {
       // 1) 구글 로그인 창을 직접 사용 (Firebase 인증 처리 페이지를 거치지 않아 다른 도메인에서도 안정적)
