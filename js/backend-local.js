@@ -126,6 +126,16 @@
           log(d, "review.create", "review", nid, `${g.name} · ${r.nickname}`, `★${r.rating} ${(r.comment || "").slice(0, 100)}`, me() ? undefined : `${r.nickname} (게스트)`);
         });
       },
+      async updateReview(id, data) {   // 로그인 상태로 쓴 본인 후기만 별점/내용 수정
+        const r = load().reviews.find(x => x.id === id);
+        if (!r || !(r.uid && me() && r.uid === me().uid)) throw denied();
+        if (!(data.rating >= 0.5 && data.rating <= 5 && (data.rating * 2) % 1 === 0)) throw denied();
+        mutate(d => {
+          const t = d.reviews.find(x => x.id === id), g = d.games.find(x => x.id === t.gameId);
+          t.rating = data.rating; t.comment = String(data.comment || "").slice(0, 500); t.editedAt = nowTs();
+          log(d, "review.edit", "review", id, `${g?.name || "?"} · ${t.nickname}`, `★${t.rating} ${t.comment.slice(0, 100)}`);
+        });
+      },
       async deleteReview(id) {
         const r = load().reviews.find(x => x.id === id);
         if (!r || !(isAdmin() || (r.uid && me() && r.uid === me().uid))) throw denied();

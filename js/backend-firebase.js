@@ -79,6 +79,12 @@ export async function createFirebaseBackend(firebaseConfig, adminEmail, adminGoo
       const ref = await addDoc(collection(db, "reviews"), { ...r, createdAt: serverTimestamp() });
       log("review.create", "review", ref.id, `${find("games", r.gameId)?.name || "?"} · ${r.nickname}`, `★${r.rating} ${(r.comment || "").slice(0, 100)}`, auth.currentUser ? undefined : `${r.nickname} (게스트)`);
     },
+    async updateReview(id, data) {   // 본인 후기만 별점/내용 수정 (규칙에서도 검사)
+      const comment = String(data.comment || "").slice(0, 500);
+      await updateDoc(doc(db, "reviews", id), { rating: data.rating, comment, editedAt: serverTimestamp() });
+      const r = find("reviews", id);
+      log("review.edit", "review", id, `${find("games", r?.gameId)?.name || "?"} · ${r?.nickname || "?"}`, `★${data.rating} ${comment.slice(0, 100)}`);
+    },
     async deleteReview(id) {
       const r = find("reviews", id);
       await deleteDoc(doc(db, "reviews", id));

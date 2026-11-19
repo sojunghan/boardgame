@@ -36,7 +36,7 @@ function closeModals() { $$(".modal").forEach(m => m.classList.add("hidden")); d
 const ACTIONS = {
   "session.create": ["활동 후기 작성", "c"], "session.edit": ["활동 후기 수정", "e"],
   "session.delete": ["활동 후기 삭제", "d"], "session.restore": ["활동 후기 복원", "r"], "session.purge": ["활동 후기 영구삭제", "d"],
-  "review.create": ["게임 후기 작성", "c"], "review.delete": ["게임 후기 삭제", "d"],
+  "review.create": ["게임 후기 작성", "c"], "review.edit": ["게임 후기 수정", "e"], "review.delete": ["게임 후기 삭제", "d"],
   "game.create": ["게임 추가", "c"], "game.edit": ["게임 수정", "e"], "game.delete": ["게임 삭제", "d"],
   "game.playcount": ["플레이 횟수 변경", "e"], "game.seed": ["게임 일괄 등록", "c"]
 };

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=22">
+  <link rel="stylesheet" href="css/style.css?v=25">
 </head>
 <body>
   <header class="sticky top-0 z-40 border-b-[3px] border-ink bg-nb-yellow">
@@ -38,9 +38,9 @@
       <div class="toolbar">
         <input id="searchInput" type="search" placeholder="🔍 게임 이름 검색">
         <select id="sortSelect">
+          <option value="rating" selected>평점 높은 순</option>
           <option value="name">이름순</option>
           <option value="plays">많이 플레이한 순</option>
-          <option value="rating">평점 높은 순</option>
           <option value="recent">최근 추가순</option>
         </select>
         <button id="seedBtn" class="btn ghost admin-only hidden">기본 게임 일괄 등록</button>
@@ -186,10 +186,10 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="js/firebase-config.js?v=22"></script>
-  <script src="js/backend-local.js?v=22"></script>
-  <script src="js/games-seed.js?v=22"></script>
-  <script src="js/avatars.js?v=22"></script>
-  <script src="js/app.js?v=22"></script>
+  <script src="js/firebase-config.js?v=25"></script>
+  <script src="js/backend-local.js?v=25"></script>
+  <script src="js/games-seed.js?v=25"></script>
+  <script src="js/avatars.js?v=25"></script>
+  <script src="js/app.js?v=25"></script>
 </body>
 </html>

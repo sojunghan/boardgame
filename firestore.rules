@@ -64,13 +64,19 @@ service cloud.firestore {
         && request.resource.data.nickname.size() > 0 && request.resource.data.nickname.size() <= 20
         && request.resource.data.rating is number
         && request.resource.data.rating >= 0.5 && request.resource.data.rating <= 5
-        && math.floor(request.resource.data.rating * 2) == request.resource.data.rating * 2   // 0.5점 단위
+        && float(math.floor(request.resource.data.rating * 2)) == float(request.resource.data.rating * 2)   // 0.5점 단위
         && request.resource.data.comment is string && request.resource.data.comment.size() <= 500
         && request.resource.data.createdAt == request.time
         && (!('uid' in request.resource.data) || (signedIn() && request.resource.data.uid == request.auth.uid))
         && exists(/databases/$(database)/documents/games/$(request.resource.data.gameId))
         && (signedIn() || get(/databases/$(database)/documents/games/$(request.resource.data.gameId)).data.playCount > 0);
-      allow update: if false;
+      // 수정: 로그인 상태로 쓴 본인 후기만, 별점(0.5점 단위)·내용·수정시각만 변경 가능
+      allow update: if signedIn() && resource.data.get('uid', '') == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'comment', 'editedAt'])
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 0.5 && request.resource.data.rating <= 5
+        && float(math.floor(request.resource.data.rating * 2)) == float(request.resource.data.rating * 2)
+        && request.resource.data.comment is string && request.resource.data.comment.size() <= 500;
       allow delete: if isAdmin() || (signedIn() && resource.data.get('uid', '') == request.auth.uid);
     }
   }

@@ -6,7 +6,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s = "") => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const safeImg = u => (/^(https?:\/\/|data:image\/)/i.test(u || "") ? u : "");
 
-const state = { games: [], reviews: [], sessions: [], profiles: [], profilesLoaded: false, rawUser: null, promptedFor: null, pAvatar: "", isAdmin: false, canAdmin: false, adminOnly: false, adminMode: sessionStorage.getItem("bg_admin_mode") === "1", user: null, openGameId: null, editGameId: null, editSessionId: null, photos: [], pendingRating: 0 };
+const state = { games: [], reviews: [], sessions: [], profiles: [], profilesLoaded: false, rawUser: null, promptedFor: null, pAvatar: "", isAdmin: false, canAdmin: false, adminOnly: false, adminMode: sessionStorage.getItem("bg_admin_mode") === "1", user: null, openGameId: null, editGameId: null, editSessionId: null, photos: [], pendingRating: 0, editReviewId: null, editRating: 0, editText: "" };
 
 // ---------- 프로필 / 아바타 ----------
 // 캐릭터 기본 아이콘 16종은 js/avatars.js(직접 그린 SVG). 프로필에는 "preset:id" 또는 업로드한 사진(data URL)이 저장돼요.
@@ -69,9 +69,9 @@ function starsHtml(value) {
   return `<span class="stars" aria-label="${fmtRating(h)}점">${[1, 2, 3, 4, 5].map(n =>
     `<i class="st ${h >= n ? "on" : h >= n - 0.5 ? "half" : ""}">★</i>`).join("")}</span>`;
 }
-const starPicker = value => `<div class="star-input" id="starInput">${[1, 2, 3, 4, 5].map(n =>
+const starPicker = (value, id = "starInput") => `<div class="star-input" id="${id}">${[1, 2, 3, 4, 5].map(n =>
   `<span class="si ${value >= n ? "on" : value >= n - 0.5 ? "half" : ""}" data-n="${n}"><b data-v="${n - 0.5}"></b><b data-v="${n}"></b>★</span>`).join("")}
-  <span class="rating-val" id="ratingVal">${value ? fmtRating(value) + "점" : "별을 눌러 선택"}</span></div>`;
+  <span class="rating-val">${value ? fmtRating(value) + "점" : "별을 눌러 선택"}</span></div>`;
 function stats(gameId) {
   const rs = state.reviews.filter(r => r.gameId === gameId);
   const avg = rs.length ? rs.reduce((a, r) => a + r.rating, 0) / rs.length : 0;
@@ -81,7 +81,7 @@ function openModal(id) { $(id).classList.remove("hidden"); document.body.style.o
 function closeModals() {
   $$(".modal").forEach(m => m.classList.add("hidden"));
   document.body.style.overflow = "";
-  state.openGameId = null;
+  state.openGameId = null; state.editReviewId = null;
 }
 
 // ---------- 렌더: 게임 목록 ----------
@@ -96,7 +96,7 @@ function renderGames() {
   let list = state.games.filter(g => g.name.toLowerCase().includes(q));
   list.sort((a, b) => {
     if (sort === "plays") return (b.playCount || 0) - (a.playCount || 0);
-    if (sort === "rating") return stats(b.id).avg - stats(a.id).avg;
+    if (sort === "rating") { const x = stats(a.id), y = stats(b.id); return y.avg - x.avg || y.count - x.count || a.name.localeCompare(b.name, "ko"); }   // 평점 높은 순 → 후기 많은 순 → 이름순
     if (sort === "recent") return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
     return a.name.localeCompare(b.name, "ko");
   });
@@ -170,7 +170,7 @@ function renderDetail() {
   const canReview = (g.playCount || 0) > 0 || !!state.user;   // 로그인하면 모든 게임에 후기 가능, 게스트는 플레이한 게임만
   const savedNick = state.user ? state.user.name : (localStorage.getItem("bg_nick") || "");
   // 입력 중인 값 보존
-  const keep = { nick: $("#rvNick")?.value ?? savedNick, text: $("#rvText")?.value ?? "" };
+  const keep = { nick: $("#rvNick")?.value || savedNick, text: $("#rvText")?.value ?? "" };
   $("#detailBody").innerHTML = `
     <div class="detail-head">
       <div class="pic">${thumb(g)}${rankBadge(computeRanking().find(x => x.g.id === g.id)?.rank)}</div>
@@ -193,10 +193,19 @@ function renderDetail() {
         <span class="go">보러가기 →</span></button>`).join("")}</div>`
       : `<p class="hint">아직 이 게임이 나온 활동 후기가 없어요.</p>`}
     <h3>💬 한줄 후기 & 평점</h3>
-    ${rs.length ? rs.map(r => `<div class="review"><div>
-        <span class="who">${r.uid ? whoHtml(r.uid, r.nickname) : esc(r.nickname)}</span> ${starsHtml(r.rating)} <span class="score text-sm">${fmtRating(r.rating)}</span><span class="when">${fmtDate(r.createdAt)}</span>
+    ${rs.length ? rs.map(r => {
+      const mine = !!(state.user && r.uid && r.uid === state.user.uid);   // 로그인 상태로 쓴 본인 후기
+      if (state.editReviewId === r.id) return `<div class="review editing"><div class="grow">
+          <span class="who">${r.uid ? whoHtml(r.uid, r.nickname) : esc(r.nickname)}</span> <span class="hint">후기 수정 (별점은 0.5점 단위)</span>
+          ${starPicker(state.editRating, "editStarInput")}
+          <textarea id="editRvText" rows="3" maxlength="500" placeholder="한줄 후기 (선택)">${esc(state.editText)}</textarea>
+          <div class="actions"><button type="button" class="btn ghost small" data-cancel-edit>취소</button><button type="button" class="btn small" data-save-review="${r.id}">저장</button></div>
+        </div></div>`;
+      return `<div class="review"><div>
+        <span class="who">${r.uid ? whoHtml(r.uid, r.nickname) : esc(r.nickname)}</span> ${starsHtml(r.rating)} <span class="score text-sm">${fmtRating(r.rating)}</span><span class="when">${fmtDate(r.createdAt)}${r.editedAt ? " · 수정됨" : ""}</span>
         ${r.comment ? `<p>${esc(r.comment)}</p>` : ""}</div>
-        ${state.isAdmin || (state.user && r.uid && r.uid === state.user.uid) ? `<button class="btn danger small" data-del-review="${r.id}">삭제</button>` : ""}</div>`).join("")
+        <div class="flex shrink-0 gap-1.5">${mine ? `<button class="btn ghost small" data-edit-review="${r.id}">수정</button>` : ""}${state.isAdmin || mine ? `<button class="btn danger small" data-del-review="${r.id}">삭제</button>` : ""}</div></div>`;
+    }).join("")
       : `<p class="hint">아직 후기가 없어요.</p>`}
     ${canReview ? `
     <form id="reviewForm" class="review-form">
@@ -205,7 +214,7 @@ function renderDetail() {
       <input id="rvNick" placeholder="닉네임 *" maxlength="20" required value="${esc(keep.nick)}">
       <textarea id="rvText" rows="3" maxlength="500" placeholder="한줄 후기 (선택)">${esc(keep.text)}</textarea>
       <button class="btn" type="submit">등록</button>
-      <span class="hint">${state.user ? "로그인 상태라 내 후기는 직접 삭제할 수 있어요." : "게스트로 남기면 나중에 직접 삭제할 수 없어요. (Google 로그인하면 가능)"}</span>
+      <span class="hint">${state.user ? "로그인 상태라 내 후기는 직접 수정·삭제할 수 있어요." : "게스트로 남기면 나중에 직접 삭제할 수 없어요. (Google 로그인하면 가능)"}</span>
     </form>` : `<div class="rounded-xl border-[3px] border-dashed border-ink bg-white p-3 text-sm font-bold">아직 모임에서 플레이한 기록이 없는 게임이에요. <b>로그인하면</b> 언제든 후기와 평점을 남길 수 있어요.
       <button type="button" class="btn small mt-2" data-login>Google 로그인</button></div>`}`;
 }
@@ -263,7 +272,7 @@ function gotoSession(sid) {
 $("#searchInput").addEventListener("input", renderGames);
 $("#sortSelect").addEventListener("change", renderGames);
 
-function openDetail(id) { state.openGameId = id; state.pendingRating = 0; renderDetail(); openModal("#detailModal"); }
+function openDetail(id) { state.openGameId = id; state.pendingRating = 0; state.editReviewId = null; renderDetail(); openModal("#detailModal"); }
 $("#gameGrid").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openDetail(c.dataset.id); });
 $("#rankList").addEventListener("click", e => { const c = e.target.closest("li"); if (c) openDetail(c.dataset.id); });
 
@@ -278,15 +287,29 @@ $("#detailBody").addEventListener("click", async e => {
   const go = t.closest("[data-goto-session]");
   if (go) return gotoSession(go.dataset.gotoSession);
   if (t.closest("[data-login]")) return requireLogin("로그인하면 이 게임에도 후기와 평점을 남길 수 있어요.", () => renderDetail());
-  if (t.closest("#starInput .si")) {   // 별의 왼쪽 절반 = n-0.5점, 오른쪽 절반(또는 별 자체) = n점
+  const si = t.closest(".star-input .si");
+  if (si) {   // 별의 왼쪽 절반 = n-0.5점, 오른쪽 절반(또는 별 자체) = n점
+    const box = si.closest(".star-input"), editing = box.id === "editStarInput";
     const half = t.closest("[data-v]");
-    state.pendingRating = half ? +half.dataset.v : +t.closest(".si").dataset.n;
-    const v = state.pendingRating;
-    $$("#starInput .si").forEach(el => { const n = +el.dataset.n; el.className = "si " + (v >= n ? "on" : v >= n - 0.5 ? "half" : ""); });
-    $("#ratingVal").textContent = fmtRating(v) + "점";
+    const v = half ? +half.dataset.v : +si.dataset.n;
+    if (editing) state.editRating = v; else state.pendingRating = v;
+    $$(".si", box).forEach(el => { const n = +el.dataset.n; el.className = "si " + (v >= n ? "on" : v >= n - 0.5 ? "half" : ""); });
+    $(".rating-val", box).textContent = fmtRating(v) + "점";
     return;
   }
   try {
+    if (t.dataset.editReview) {   // 본인 후기 수정 시작
+      const r = state.reviews.find(x => x.id === t.dataset.editReview);
+      if (r) { state.editReviewId = r.id; state.editRating = r.rating; state.editText = r.comment || ""; renderDetail(); }
+      return;
+    }
+    if (t.dataset.cancelEdit !== undefined) { state.editReviewId = null; renderDetail(); return; }
+    if (t.dataset.saveReview) {
+      if (!state.editRating) return toast("별점을 선택해주세요");
+      await backend.updateReview(t.dataset.saveReview, { rating: state.editRating, comment: ($("#editRvText")?.value ?? state.editText).trim() });
+      state.editReviewId = null; renderDetail(); toast("후기를 수정했어요 ✏️");
+      return;
+    }
     if (t.dataset.delReview) {   // 관리자 또는 작성자 본인
       if (confirm("이 후기를 삭제할까요?")) await backend.deleteReview(t.dataset.delReview);
       return;
@@ -304,6 +327,7 @@ $("#detailBody").addEventListener("click", async e => {
   } catch (err) { toast("실패: " + err.code); }
 });
 
+$("#detailBody").addEventListener("input", e => { if (e.target.id === "editRvText") state.editText = e.target.value; });
 $("#detailBody").addEventListener("submit", async e => {
   if (e.target.id !== "reviewForm") return;
   e.preventDefault();
